@@ -7,13 +7,11 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/hajimehoshi/bitmapfont/v4"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	ebitext "github.com/hajimehoshi/ebiten/v2/text"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/gofont/goregular"
-	"golang.org/x/image/font/opentype"
 )
 
 const (
@@ -79,7 +77,7 @@ var menuLabels = [...]string{"Start", "Quit"}
 
 var elementNames = [...]string{"Fire", "Ice", "Thunder"}
 
-var hudSmallFont = mustLoadHUDSmallFont()
+var hudSmallFont = bitmapfont.Face
 
 var elementColors = [...]color.RGBA{
 	{R: 255, G: 141, B: 67, A: 255},
@@ -1196,7 +1194,7 @@ func (g *Game) drawSwing(screen *ebiten.Image, s swing, ox, oy float64) {
 }
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
-	g.drawHUDPanel(screen, 8, 8, 92, 22, color.RGBA{R: 255, G: 105, B: 120, A: 255}, 210)
+	g.drawHUDPanel(screen, 8, 8, 92, 22, 210)
 	for i := 0; i < maxHealth; i++ {
 		x := 11 + float64(i*15)
 		op := &ebiten.DrawImageOptions{}
@@ -1209,16 +1207,16 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 		screen.DrawImage(g.assets.heart, op)
 	}
 
-	g.drawHUDPanel(screen, 314, 8, 158, 32, color.RGBA{R: 247, G: 233, B: 92, A: 255}, 210)
-	g.drawSmallStatLine(screen, 322, 13, "Score", fmt.Sprintf("%04d", g.score), color.RGBA{R: 247, G: 233, B: 92, A: 255})
-	g.drawSmallStatLine(screen, 400, 13, "Kills", fmt.Sprintf("%02d", g.kills), color.RGBA{R: 255, G: 105, B: 120, A: 255})
-	g.drawSmallStatLine(screen, 322, 24, "Dist", fmt.Sprintf("%04d", int(g.distance/12)), color.RGBA{R: 126, G: 230, B: 255, A: 255})
-	g.drawSmallStatLine(screen, 400, 24, "Best", fmt.Sprintf("%04d", g.bestScore), color.RGBA{R: 214, G: 226, B: 235, A: 255})
+	g.drawHUDPanel(screen, 300, 8, 172, 32, 210)
+	g.drawSmallStatLine(screen, 308, 13, "Score", fmt.Sprintf("%04d", g.score), color.RGBA{R: 247, G: 233, B: 92, A: 255})
+	g.drawSmallStatLine(screen, 390, 13, "Kills", fmt.Sprintf("%02d", g.kills), color.RGBA{R: 255, G: 105, B: 120, A: 255})
+	g.drawSmallStatLine(screen, 308, 24, "Dist", fmt.Sprintf("%04d", int(g.distance/12)), color.RGBA{R: 126, G: 230, B: 255, A: 255})
+	g.drawSmallStatLine(screen, 390, 24, "Best", fmt.Sprintf("%04d", g.bestScore), color.RGBA{R: 214, G: 226, B: 235, A: 255})
 
 	if g.showAbilityHUD() {
 		alpha := g.abilityHUDAlpha()
 		y := 34 + (1-g.hudAbility)*(-12)
-		g.drawHUDPanel(screen, 8, y, 92, 40, color.RGBA{R: 126, G: 230, B: 255, A: 255}, alpha)
+		g.drawHUDPanel(screen, 8, y, 92, 40, alpha)
 		for i, el := range []element{fire, ice, thunder} {
 			rowY := y + 4 + float64(i*12)
 			g.drawAbilitySlot(screen, 12, rowY, 84, 8, el, alpha)
@@ -1334,17 +1332,18 @@ func (g *Game) drawPanel(screen *ebiten.Image, x, y, w, h float64, accent color.
 	ebitenutil.DrawRect(screen, x+1, y+h-4, w-2, 1, color.RGBA{R: 255, G: 255, B: 255, A: 30})
 }
 
-func (g *Game) drawHUDPanel(screen *ebiten.Image, x, y, w, h float64, accent color.RGBA, alpha uint8) {
-	ebitenutil.DrawRect(screen, x+2, y+2, w, h, color.RGBA{R: 0, G: 0, B: 0, A: uint8(minInt(int(alpha/3), 60))})
+func (g *Game) drawHUDPanel(screen *ebiten.Image, x, y, w, h float64, alpha uint8) {
+	ebitenutil.DrawRect(screen, x+2, y+2, w, h, color.RGBA{R: 0, G: 0, B: 0, A: uint8(minInt(int(alpha/4), 44))})
 	ebitenutil.DrawRect(screen, x, y, w, h, color.RGBA{R: 15, G: 19, B: 27, A: alpha})
-	g.drawRectOutline(screen, x, y, w, h, color.RGBA{R: 214, G: 226, B: 235, A: uint8(minInt(int(alpha)+10, 225))})
-	ebitenutil.DrawRect(screen, x+1, y+1, w-2, 2, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: alpha})
+	g.drawRectOutline(screen, x, y, w, h, color.RGBA{R: 220, G: 228, B: 236, A: uint8(minInt(int(alpha)+8, 220))})
 }
 
 func (g *Game) drawSmallStatLine(screen *ebiten.Image, x, y int, label, value string, accent color.RGBA) {
 	ebitenutil.DrawRect(screen, float64(x), float64(y+2), 4, 4, accent)
-	g.drawSmallText(screen, label, x+8, y, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: 255})
-	g.drawSmallText(screen, value, x+36, y, color.RGBA{R: 245, G: 247, B: 250, A: 255})
+	labelX := x + 8
+	valueX := labelX + smallTextWidth(label) + 8
+	g.drawSmallText(screen, label, labelX, y, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: 255})
+	g.drawSmallText(screen, value, valueX, y, color.RGBA{R: 245, G: 247, B: 250, A: 255})
 }
 
 func (g *Game) drawRectOutline(screen *ebiten.Image, x, y, w, h float64, c color.RGBA) {
@@ -1551,24 +1550,12 @@ func ratio(v uint8) float32 {
 	return float32(v) / 255
 }
 
-func mustLoadHUDSmallFont() font.Face {
-	tt, err := opentype.Parse(goregular.TTF)
-	if err != nil {
-		panic(err)
-	}
-	face, err := opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    8,
-		DPI:     72,
-		Hinting: font.HintingVertical,
-	})
-	if err != nil {
-		panic(err)
-	}
-	return face
-}
-
 func textWidth(text string) int {
 	return len(text) * 6
+}
+
+func smallTextWidth(text string) int {
+	return ebitext.BoundString(hudSmallFont, text).Dx()
 }
 
 func maxInt(a, b int) int {
