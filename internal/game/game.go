@@ -10,6 +10,10 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	ebitext "github.com/hajimehoshi/ebiten/v2/text"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/goregular"
+	"golang.org/x/image/font/opentype"
 )
 
 const (
@@ -74,6 +78,8 @@ const (
 var menuLabels = [...]string{"Start", "Quit"}
 
 var elementNames = [...]string{"Fire", "Ice", "Thunder"}
+
+var hudSmallFont = mustLoadHUDSmallFont()
 
 var elementColors = [...]color.RGBA{
 	{R: 255, G: 141, B: 67, A: 255},
@@ -223,6 +229,8 @@ type Game struct {
 	menuIndex   int
 	introFrames int
 	hudFocus    int
+	hudAbility  float64
+	savePath    string
 
 	bgFarOffset  float64
 	bgMidOffset  float64
@@ -236,9 +244,11 @@ func New() (*Game, error) {
 	}
 
 	g := &Game{
-		assets: assets,
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		assets:   assets,
+		rng:      rand.New(rand.NewSource(time.Now().UnixNano())),
+		savePath: defaultSavePath(),
 	}
+	g.loadProgress()
 	g.openMenu()
 	return g, nil
 }
@@ -269,6 +279,7 @@ func (g *Game) startRun() {
 	g.state = statePlaying
 	g.introFrames = introFrames
 	g.hudFocus = 120
+	g.hudAbility = 0
 	g.bgFarOffset = 0
 	g.bgMidOffset = 0
 	g.bgNearOffset = 0
@@ -279,14 +290,13 @@ func (g *Game) startRun() {
 }
 
 func (g *Game) openMenu() {
-	if g.score > g.bestScore {
-		g.bestScore = g.score
-	}
+	g.setBestScore(g.score)
 	g.startRun()
 	g.state = stateMenu
 	g.menuIndex = menuStart
 	g.introFrames = 0
 	g.hudFocus = 0
+	g.hudAbility = 0
 	g.shake = 0
 }
 
@@ -345,6 +355,7 @@ func (g *Game) updatePlaying() error {
 	if g.hudFocus > 0 {
 		g.hudFocus--
 	}
+	g.updateAbilityHUDAnimation()
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		g.openMenu()
 		return nil
@@ -743,8 +754,8 @@ func (g *Game) cleanup() {
 		}
 	}
 	g.swings = swings
-	if g.state == stateGameOver && g.score > g.bestScore {
-		g.bestScore = g.score
+	if g.state == stateGameOver {
+		g.setBestScore(g.score)
 	}
 }
 
@@ -844,9 +855,7 @@ func (g *Game) hitPlayer(amount int) {
 	if p.hp <= 0 {
 		p.hp = 0
 		g.state = stateGameOver
-		if g.score > g.bestScore {
-			g.bestScore = g.score
-		}
+		g.setBestScore(g.score)
 	}
 }
 
@@ -1187,11 +1196,12 @@ func (g *Game) drawSwing(screen *ebiten.Image, s swing, ox, oy float64) {
 }
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
-	g.drawHUDPanel(screen, 8, 8, 96, 24, color.RGBA{R: 255, G: 105, B: 120, A: 255}, 220)
+	g.drawHUDPanel(screen, 8, 8, 92, 22, color.RGBA{R: 255, G: 105, B: 120, A: 255}, 210)
 	for i := 0; i < maxHealth; i++ {
-		x := 12 + float64(i*16)
+		x := 11 + float64(i*15)
 		op := &ebiten.DrawImageOptions{}
 		op.Filter = ebiten.FilterNearest
+		op.GeoM.Scale(0.9, 0.9)
 		op.GeoM.Translate(x, 10)
 		if i >= g.player.hp {
 			op.ColorScale.ScaleAlpha(0.2)
@@ -1199,18 +1209,19 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 		screen.DrawImage(g.assets.heart, op)
 	}
 
-	g.drawHUDPanel(screen, 338, 8, 134, 28, color.RGBA{R: 247, G: 233, B: 92, A: 255}, 220)
-	g.drawMiniStat(screen, 346, 12, color.RGBA{R: 247, G: 233, B: 92, A: 255}, fmt.Sprintf("S%04d", g.score))
-	g.drawMiniStat(screen, 408, 12, color.RGBA{R: 255, G: 105, B: 120, A: 255}, fmt.Sprintf("K%02d", g.kills))
-	g.drawMiniStat(screen, 346, 23, color.RGBA{R: 126, G: 230, B: 255, A: 255}, fmt.Sprintf("D%04d", int(g.distance/12)))
-	g.drawMiniStat(screen, 408, 23, color.RGBA{R: 214, G: 226, B: 235, A: 255}, fmt.Sprintf("B%04d", g.bestScore))
+	g.drawHUDPanel(screen, 314, 8, 158, 32, color.RGBA{R: 247, G: 233, B: 92, A: 255}, 210)
+	g.drawSmallStatLine(screen, 322, 13, "Score", fmt.Sprintf("%04d", g.score), color.RGBA{R: 247, G: 233, B: 92, A: 255})
+	g.drawSmallStatLine(screen, 400, 13, "Kills", fmt.Sprintf("%02d", g.kills), color.RGBA{R: 255, G: 105, B: 120, A: 255})
+	g.drawSmallStatLine(screen, 322, 24, "Dist", fmt.Sprintf("%04d", int(g.distance/12)), color.RGBA{R: 126, G: 230, B: 255, A: 255})
+	g.drawSmallStatLine(screen, 400, 24, "Best", fmt.Sprintf("%04d", g.bestScore), color.RGBA{R: 214, G: 226, B: 235, A: 255})
 
 	if g.showAbilityHUD() {
 		alpha := g.abilityHUDAlpha()
-		g.drawHUDPanel(screen, 148, 8, 184, 24, color.RGBA{R: 126, G: 230, B: 255, A: 255}, alpha)
+		y := 34 + (1-g.hudAbility)*(-12)
+		g.drawHUDPanel(screen, 8, y, 92, 40, color.RGBA{R: 126, G: 230, B: 255, A: 255}, alpha)
 		for i, el := range []element{fire, ice, thunder} {
-			x := 156.0 + float64(i*58)
-			g.drawAbilitySlot(screen, x, 11, 50, 18, el, alpha)
+			rowY := y + 4 + float64(i*12)
+			g.drawAbilitySlot(screen, 12, rowY, 84, 8, el, alpha)
 		}
 	}
 }
@@ -1278,44 +1289,37 @@ func (g *Game) drawAbilitySlot(screen *ebiten.Image, x, y, w, h float64, el elem
 	selected := g.player.lastCast == el
 	fill := color.RGBA{R: 19, G: 23, B: 31, A: 0}
 	if selected {
-		fill = color.RGBA{R: 28, G: 33, B: 42, A: uint8(minInt(int(alpha), 120))}
+		fill = color.RGBA{R: 28, G: 33, B: 42, A: uint8(minInt(int(alpha), 96))}
 	}
 	ebitenutil.DrawRect(screen, x, y, w, h, fill)
-	g.drawRectOutline(screen, x, y, w, h, color.RGBA{R: 196, G: 207, B: 218, A: uint8(minInt(int(alpha), 150))})
 	if selected {
-		ebitenutil.DrawRect(screen, x, y, w, 2, accent)
+		ebitenutil.DrawRect(screen, x-2, y, 2, h, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: alpha})
+	}
+	if selected {
+		g.drawRectOutline(screen, x, y, w, h, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: uint8(minInt(int(alpha), 170))})
 	}
 
 	icon := &ebiten.DrawImageOptions{}
 	icon.Filter = ebiten.FilterNearest
-	icon.GeoM.Translate(x+3, y+1)
+	icon.GeoM.Scale(0.7, 0.7)
+	icon.GeoM.Translate(x, y-2)
 	icon.ColorScale.ScaleAlpha(float32(alpha) / 255)
 	if g.player.cooldowns[int(el)] > 0 {
 		icon.ColorScale.ScaleAlpha(0.55)
 	}
 	screen.DrawImage(g.assets.icons[el], icon)
 
-	g.drawText(screen, attackKey(el), int(x+18), int(y+1))
-
 	cdMax := attackCooldown(el)
 	cdNow := g.player.cooldowns[int(el)]
-	readyLabel := ""
-	if cdNow > 0 {
-		readyLabel = fmt.Sprintf("%d", (cdNow+5)/6)
-	}
-	if readyLabel != "" {
-		g.drawText(screen, readyLabel, int(x+w)-11, int(y+1))
-	}
-
-	barX := x + 17
-	barY := y + 11
-	barW := w - 21
-	ebitenutil.DrawRect(screen, barX, barY, barW, 3, color.RGBA{R: 13, G: 17, B: 22, A: alpha})
+	barX := x + 15
+	barY := y + 2
+	barW := w - 19
+	ebitenutil.DrawRect(screen, barX, barY, barW, 4, color.RGBA{R: 13, G: 17, B: 22, A: alpha})
 	fillW := barW
 	if cdNow > 0 {
 		fillW = barW * (1 - float64(cdNow)/float64(cdMax))
 	}
-	ebitenutil.DrawRect(screen, barX, barY, fillW, 3, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: alpha})
+	ebitenutil.DrawRect(screen, barX, barY, fillW, 4, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: alpha})
 }
 
 func (g *Game) drawBackdrop(screen *ebiten.Image, alpha uint8) {
@@ -1337,9 +1341,10 @@ func (g *Game) drawHUDPanel(screen *ebiten.Image, x, y, w, h float64, accent col
 	ebitenutil.DrawRect(screen, x+1, y+1, w-2, 2, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: alpha})
 }
 
-func (g *Game) drawMiniStat(screen *ebiten.Image, x, y int, accent color.RGBA, text string) {
+func (g *Game) drawSmallStatLine(screen *ebiten.Image, x, y int, label, value string, accent color.RGBA) {
 	ebitenutil.DrawRect(screen, float64(x), float64(y+2), 4, 4, accent)
-	g.drawText(screen, text, x+8, y)
+	g.drawSmallText(screen, label, x+8, y, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: 255})
+	g.drawSmallText(screen, value, x+36, y, color.RGBA{R: 245, G: 247, B: 250, A: 255})
 }
 
 func (g *Game) drawRectOutline(screen *ebiten.Image, x, y, w, h float64, c color.RGBA) {
@@ -1351,6 +1356,11 @@ func (g *Game) drawRectOutline(screen *ebiten.Image, x, y, w, h float64, c color
 
 func (g *Game) drawCenteredText(screen *ebiten.Image, text string, x, y, w int) {
 	g.drawText(screen, text, x+(w-textWidth(text))/2, y)
+}
+
+func (g *Game) drawSmallText(screen *ebiten.Image, text string, x, y int, clr color.Color) {
+	metrics := hudSmallFont.Metrics()
+	ebitext.Draw(screen, text, hudSmallFont, x, y+metrics.Ascent.Ceil(), clr)
 }
 
 func (g *Game) drawText(screen *ebiten.Image, text string, x, y int) {
@@ -1366,21 +1376,24 @@ func (g *Game) shakeOffset() (float64, float64) {
 	return g.rng.Float64()*rangeX - rangeX/2, g.rng.Float64()*rangeX - rangeX/2
 }
 
+func (g *Game) updateAbilityHUDAnimation() {
+	target := 0.0
+	if g.hudFocus > 0 || g.hasActiveCooldown() {
+		target = 1.0
+	}
+	if g.hudAbility < target {
+		g.hudAbility = math.Min(target, g.hudAbility+0.14)
+		return
+	}
+	g.hudAbility = math.Max(target, g.hudAbility-0.1)
+}
+
 func (g *Game) showAbilityHUD() bool {
-	return g.hudFocus > 0 || g.hasActiveCooldown()
+	return g.hudAbility > 0.02
 }
 
 func (g *Game) abilityHUDAlpha() uint8 {
-	if g.hasActiveCooldown() {
-		return 220
-	}
-	if g.hudFocus <= 0 {
-		return 0
-	}
-	if g.hudFocus >= 60 {
-		return 190
-	}
-	return uint8(70 + g.hudFocus*2)
+	return uint8(220 * g.hudAbility)
 }
 
 func (g *Game) hasActiveCooldown() bool {
@@ -1536,6 +1549,22 @@ func wrapLayer(value float64) float64 {
 
 func ratio(v uint8) float32 {
 	return float32(v) / 255
+}
+
+func mustLoadHUDSmallFont() font.Face {
+	tt, err := opentype.Parse(goregular.TTF)
+	if err != nil {
+		panic(err)
+	}
+	face, err := opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    8,
+		DPI:     72,
+		Hinting: font.HintingVertical,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return face
 }
 
 func textWidth(text string) int {
