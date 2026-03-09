@@ -16,7 +16,7 @@ const (
 	ScreenWidth  = 480
 	ScreenHeight = 270
 
-	groundY      = 220
+	groundY       = 220
 	playerScreenX = 112
 
 	gravity      = 0.44
@@ -57,6 +57,21 @@ const (
 	tileCrate
 	tileSpike
 )
+
+type gameState int
+
+const (
+	stateMenu gameState = iota
+	statePlaying
+	stateGameOver
+)
+
+const (
+	menuStart = iota
+	menuQuit
+)
+
+var menuLabels = [...]string{"Start", "Quit"}
 
 var elementNames = [...]string{"Fire", "Ice", "Thunder"}
 
@@ -204,8 +219,10 @@ type Game struct {
 	bestScore int
 
 	shake       int
-	gameOver    bool
+	state       gameState
+	menuIndex   int
 	introFrames int
+	hudFocus    int
 
 	bgFarOffset  float64
 	bgMidOffset  float64
@@ -222,11 +239,11 @@ func New() (*Game, error) {
 		assets: assets,
 		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
-	g.reset()
+	g.openMenu()
 	return g, nil
 }
 
-func (g *Game) reset() {
+func (g *Game) startRun() {
 	g.player = player{
 		y:        groundY - 40,
 		w:        30,
@@ -249,8 +266,9 @@ func (g *Game) reset() {
 	g.kills = 0
 	g.ticks = 0
 	g.shake = 0
-	g.gameOver = false
+	g.state = statePlaying
 	g.introFrames = introFrames
+	g.hudFocus = 120
 	g.bgFarOffset = 0
 	g.bgMidOffset = 0
 	g.bgNearOffset = 0
@@ -260,27 +278,79 @@ func (g *Game) reset() {
 	}
 }
 
+func (g *Game) openMenu() {
+	if g.score > g.bestScore {
+		g.bestScore = g.score
+	}
+	g.startRun()
+	g.state = stateMenu
+	g.menuIndex = menuStart
+	g.introFrames = 0
+	g.hudFocus = 0
+	g.shake = 0
+}
+
 func (g *Game) Layout(_, _ int) (int, int) {
 	return ScreenWidth, ScreenHeight
 }
 
 func (g *Game) Update() error {
-	if g.gameOver {
-		if inpututil.IsKeyJustPressed(ebiten.KeyR) || inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-			g.reset()
-		}
-		return nil
-	}
-
 	g.ticks++
-	if g.introFrames > 0 {
-		g.introFrames--
-	}
 	if g.shake > 0 {
 		g.shake--
 	}
 
-	g.handleInput()
+	switch g.state {
+	case stateMenu:
+		return g.updateMenu()
+	case statePlaying:
+		return g.updatePlaying()
+	case stateGameOver:
+		return g.updateGameOver()
+	default:
+		return nil
+	}
+}
+
+func (g *Game) updateMenu() error {
+	g.bgFarOffset = wrapLayer(g.bgFarOffset - 0.18)
+	g.bgMidOffset = wrapLayer(g.bgMidOffset - 0.34)
+	g.bgNearOffset = wrapLayer(g.bgNearOffset - 0.52)
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
+		g.moveMenuSelection(-1)
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) || inpututil.IsKeyJustPressed(ebiten.KeyS) {
+		g.moveMenuSelection(1)
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		return ebiten.Termination
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		switch g.menuIndex {
+		case menuStart:
+			g.startRun()
+		case menuQuit:
+			return ebiten.Termination
+		}
+	}
+
+	return nil
+}
+
+func (g *Game) updatePlaying() error {
+	if g.introFrames > 0 {
+		g.introFrames--
+	}
+	if g.hudFocus > 0 {
+		g.hudFocus--
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.openMenu()
+		return nil
+	}
+
+	g.handlePlayInput()
 	g.advanceDifficulty()
 	g.scrollBackgrounds()
 	g.scrollTerrain()
@@ -297,7 +367,18 @@ func (g *Game) Update() error {
 	return nil
 }
 
-func (g *Game) handleInput() {
+func (g *Game) updateGameOver() error {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.openMenu()
+		return nil
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyR) || inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		g.startRun()
+	}
+	return nil
+}
+
+func (g *Game) handlePlayInput() {
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) || inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
 		g.player.jumpBuffer = jumpBufferSpan
 	}
@@ -311,6 +392,10 @@ func (g *Game) handleInput() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyL) || inpututil.IsKeyJustPressed(ebiten.KeyDigit3) {
 		g.tryCast(thunder)
 	}
+}
+
+func (g *Game) moveMenuSelection(delta int) {
+	g.menuIndex = (g.menuIndex + delta + len(menuLabels)) % len(menuLabels)
 }
 
 func (g *Game) advanceDifficulty() {
@@ -572,7 +657,7 @@ func (g *Game) resolveThreats() {
 		}
 	}
 
-	if g.gameOver {
+	if g.state == stateGameOver {
 		return
 	}
 
@@ -583,7 +668,7 @@ func (g *Game) resolveThreats() {
 		}
 	}
 
-	if g.gameOver {
+	if g.state == stateGameOver {
 		return
 	}
 
@@ -597,7 +682,7 @@ func (g *Game) resolveThreats() {
 		}
 	}
 
-	if g.gameOver {
+	if g.state == stateGameOver {
 		return
 	}
 
@@ -658,7 +743,7 @@ func (g *Game) cleanup() {
 		}
 	}
 	g.swings = swings
-	if g.gameOver && g.score > g.bestScore {
+	if g.state == stateGameOver && g.score > g.bestScore {
 		g.bestScore = g.score
 	}
 }
@@ -672,6 +757,7 @@ func (g *Game) tryCast(el element) {
 	g.player.cooldowns[idx] = attackCooldown(el)
 	g.player.lastCast = el
 	g.player.attackFlash = 8
+	g.hudFocus = maxInt(g.hudFocus, 120)
 
 	w, h, xOff, yOff := attackSwing(el)
 	g.swings = append(g.swings, swing{
@@ -743,12 +829,13 @@ func (g *Game) damageEnemy(e *enemy, baseDamage int, attack element) {
 
 func (g *Game) hitPlayer(amount int) {
 	p := &g.player
-	if p.invuln > 0 || g.gameOver {
+	if p.invuln > 0 || g.state == stateGameOver {
 		return
 	}
 
 	p.hp -= amount
 	p.invuln = 50
+	g.hudFocus = maxInt(g.hudFocus, 120)
 	if p.vy > -4.2 {
 		p.vy = -4.2
 	}
@@ -756,7 +843,7 @@ func (g *Game) hitPlayer(amount int) {
 
 	if p.hp <= 0 {
 		p.hp = 0
-		g.gameOver = true
+		g.state = stateGameOver
 		if g.score > g.bestScore {
 			g.bestScore = g.score
 		}
@@ -917,8 +1004,24 @@ func (g *Game) addEnemy(kind enemyKind, x, y float64) {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	ox, oy := g.shakeOffset()
+	ox, oy := 0.0, 0.0
+	if g.state == statePlaying {
+		ox, oy = g.shakeOffset()
+	}
 
+	g.drawWorld(screen, ox, oy)
+
+	switch g.state {
+	case statePlaying:
+		g.drawHUD(screen)
+	case stateMenu:
+		g.drawMenu(screen)
+	case stateGameOver:
+		g.drawGameOver(screen)
+	}
+}
+
+func (g *Game) drawWorld(screen *ebiten.Image, ox, oy float64) {
 	g.drawRepeating(screen, g.assets.backgroundFar, g.bgFarOffset+ox*0.15, oy*0.1)
 	g.drawRepeating(screen, g.assets.backgroundMid, g.bgMidOffset+ox*0.35, oy*0.2)
 	g.drawRepeating(screen, g.assets.backgroundNear, g.bgNearOffset+ox*0.55, oy*0.35)
@@ -939,14 +1042,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawPlayer(screen, ox, oy)
 	for _, s := range g.swings {
 		g.drawSwing(screen, s, ox, oy)
-	}
-	g.drawHUD(screen)
-
-	if g.introFrames > 0 && !g.gameOver {
-		g.drawIntro(screen)
-	}
-	if g.gameOver {
-		g.drawGameOver(screen)
 	}
 }
 
@@ -1045,7 +1140,9 @@ func (g *Game) drawProjectile(screen *ebiten.Image, p projectile, ox, oy float64
 
 func (g *Game) drawPlayer(screen *ebiten.Image, ox, oy float64) {
 	frame := g.assets.playerFrames[0]
-	if !g.player.onGround {
+	if g.state == stateMenu {
+		frame = g.assets.playerFrames[(g.ticks/12)%6]
+	} else if !g.player.onGround {
 		if g.player.vy < 0 {
 			frame = g.assets.playerFrames[6]
 		} else {
@@ -1090,67 +1187,170 @@ func (g *Game) drawSwing(screen *ebiten.Image, s swing, ox, oy float64) {
 }
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
+	g.drawHUDPanel(screen, 8, 8, 96, 24, color.RGBA{R: 255, G: 105, B: 120, A: 255}, 220)
 	for i := 0; i < maxHealth; i++ {
-		x := 12 + float64(i*18)
+		x := 12 + float64(i*16)
 		op := &ebiten.DrawImageOptions{}
 		op.Filter = ebiten.FilterNearest
-		op.GeoM.Translate(x, 12)
+		op.GeoM.Translate(x, 10)
 		if i >= g.player.hp {
 			op.ColorScale.ScaleAlpha(0.2)
 		}
 		screen.DrawImage(g.assets.heart, op)
 	}
 
-	g.drawText(screen, fmt.Sprintf("DIST %04d", int(g.distance/12)), 350, 12)
-	g.drawText(screen, fmt.Sprintf("SCORE %04d", g.score), 338, 28)
-	g.drawText(screen, fmt.Sprintf("KILLS %02d", g.kills), 356, 44)
+	g.drawHUDPanel(screen, 338, 8, 134, 28, color.RGBA{R: 247, G: 233, B: 92, A: 255}, 220)
+	g.drawMiniStat(screen, 346, 12, color.RGBA{R: 247, G: 233, B: 92, A: 255}, fmt.Sprintf("S%04d", g.score))
+	g.drawMiniStat(screen, 408, 12, color.RGBA{R: 255, G: 105, B: 120, A: 255}, fmt.Sprintf("K%02d", g.kills))
+	g.drawMiniStat(screen, 346, 23, color.RGBA{R: 126, G: 230, B: 255, A: 255}, fmt.Sprintf("D%04d", int(g.distance/12)))
+	g.drawMiniStat(screen, 408, 23, color.RGBA{R: 214, G: 226, B: 235, A: 255}, fmt.Sprintf("B%04d", g.bestScore))
 
-	for i, el := range []element{fire, ice, thunder} {
-		x := 14.0 + float64(i*60)
-		y := 238.0
-		icon := g.assets.icons[el]
-		op := &ebiten.DrawImageOptions{}
-		op.Filter = ebiten.FilterNearest
-		op.GeoM.Translate(x, y)
-		if g.player.cooldowns[int(el)] > 0 {
-			op.ColorScale.ScaleAlpha(0.4)
+	if g.showAbilityHUD() {
+		alpha := g.abilityHUDAlpha()
+		g.drawHUDPanel(screen, 148, 8, 184, 24, color.RGBA{R: 126, G: 230, B: 255, A: 255}, alpha)
+		for i, el := range []element{fire, ice, thunder} {
+			x := 156.0 + float64(i*58)
+			g.drawAbilitySlot(screen, x, 11, 50, 18, el, alpha)
 		}
-		screen.DrawImage(icon, op)
-
-		label := fmt.Sprintf("%s", attackKey(el))
-		g.drawText(screen, label, int(x), 254)
-
-		cdMax := attackCooldown(el)
-		cdNow := g.player.cooldowns[int(el)]
-		ebitenutil.DrawRect(screen, x+18, y+5, 34, 5, color.RGBA{R: 23, G: 20, B: 28, A: 220})
-		fill := 34.0
-		if cdNow > 0 {
-			fill = 34 * (1 - float64(cdNow)/float64(cdMax))
-		}
-		ebitenutil.DrawRect(screen, x+18, y+5, fill, 5, elementColors[el])
 	}
-}
-
-func (g *Game) drawIntro(screen *ebiten.Image) {
-	alpha := uint8(180)
-	if g.introFrames < 80 {
-		alpha = uint8(float64(alpha) * float64(g.introFrames) / 80)
-	}
-	ebitenutil.DrawRect(screen, 14, 154, 300, 100, color.RGBA{R: 11, G: 15, B: 24, A: alpha})
-	g.drawText(screen, "ELEMENT RUSH", 28, 166)
-	g.drawText(screen, "Jump: Space / W / Up", 28, 186)
-	g.drawText(screen, "Fire J   Ice K   Thunder L", 28, 202)
-	g.drawText(screen, "Deflect enemy shots with any attack.", 28, 218)
-	g.drawText(screen, "Fire > Ice > Thunder > Fire", 28, 234)
 }
 
 func (g *Game) drawGameOver(screen *ebiten.Image) {
-	ebitenutil.DrawRect(screen, 0, 0, ScreenWidth, ScreenHeight, color.RGBA{R: 8, G: 8, B: 12, A: 170})
-	ebitenutil.DrawRect(screen, 120, 88, 244, 94, color.RGBA{R: 18, G: 18, B: 26, A: 235})
-	g.drawText(screen, "RUN ENDED", 188, 108)
-	g.drawText(screen, fmt.Sprintf("Score %d", g.score), 182, 128)
-	g.drawText(screen, fmt.Sprintf("Best %d", maxInt(g.bestScore, g.score)), 188, 144)
-	g.drawText(screen, "Press R or Space to restart", 142, 164)
+	g.drawBackdrop(screen, 156)
+	g.drawPanel(screen, 108, 76, 264, 118, color.RGBA{R: 255, G: 105, B: 120, A: 255})
+	g.drawCenteredText(screen, "RUN ENDED", 108, 92, 264)
+	g.drawCenteredText(screen, fmt.Sprintf("Score %d   Best %d", g.score, maxInt(g.bestScore, g.score)), 108, 116, 264)
+	g.drawCenteredText(screen, "Enter or R to restart", 108, 142, 264)
+	g.drawCenteredText(screen, "Esc to return to menu", 108, 158, 264)
+	markerAccent := color.RGBA{R: 255, G: 141, B: 67, A: 255}
+	ebitenutil.DrawRect(screen, 130+float64((g.ticks/20)%3), 144, 8, 8, markerAccent)
+}
+
+func (g *Game) drawMenu(screen *ebiten.Image) {
+	g.drawBackdrop(screen, 140)
+	g.drawPanel(screen, 98, 28, 284, 194, color.RGBA{R: 255, G: 141, B: 67, A: 255})
+
+	leftIcon := &ebiten.DrawImageOptions{}
+	leftIcon.Filter = ebiten.FilterNearest
+	leftIcon.GeoM.Scale(1.4, 1.4)
+	leftIcon.GeoM.Translate(124, 44)
+	screen.DrawImage(g.assets.icons[fire], leftIcon)
+
+	rightIcon := &ebiten.DrawImageOptions{}
+	rightIcon.Filter = ebiten.FilterNearest
+	rightIcon.GeoM.Scale(1.4, 1.4)
+	rightIcon.GeoM.Translate(336, 44)
+	screen.DrawImage(g.assets.icons[thunder], rightIcon)
+
+	g.drawCenteredText(screen, "ELEMENT RUSH", 98, 50, 284)
+	g.drawCenteredText(screen, "Elemental infinite runner", 98, 70, 284)
+	g.drawCenteredText(screen, fmt.Sprintf("Best score %d", g.bestScore), 98, 88, 284)
+
+	for i, label := range menuLabels {
+		selected := i == g.menuIndex
+		accent := color.RGBA{R: 255, G: 141, B: 67, A: 255}
+		if i == menuQuit {
+			accent = color.RGBA{R: 255, G: 105, B: 120, A: 255}
+		}
+		g.drawMenuOption(screen, 138, float64(108+i*36), 204, 28, label, selected, accent)
+	}
+
+	g.drawCenteredText(screen, "Move  W/S or Up/Down", 98, 186, 284)
+	g.drawCenteredText(screen, "Enter/Space select   Esc quit", 98, 200, 284)
+}
+
+func (g *Game) drawMenuOption(screen *ebiten.Image, x, y, w, h float64, label string, selected bool, accent color.RGBA) {
+	fill := color.RGBA{R: 20, G: 24, B: 34, A: 220}
+	if selected {
+		fill = color.RGBA{R: 34, G: 40, B: 54, A: 235}
+	}
+	ebitenutil.DrawRect(screen, x, y, w, h, fill)
+	g.drawRectOutline(screen, x, y, w, h, color.RGBA{R: 214, G: 226, B: 235, A: 230})
+	if selected {
+		ebitenutil.DrawRect(screen, x, y, w, 3, accent)
+		ebitenutil.DrawRect(screen, x+7+float64((g.ticks/18)%2), y+7, 4, h-14, accent)
+	}
+	g.drawCenteredText(screen, label, int(x), int(y)+7, int(w))
+}
+
+func (g *Game) drawAbilitySlot(screen *ebiten.Image, x, y, w, h float64, el element, alpha uint8) {
+	accent := elementColors[el]
+	selected := g.player.lastCast == el
+	fill := color.RGBA{R: 19, G: 23, B: 31, A: 0}
+	if selected {
+		fill = color.RGBA{R: 28, G: 33, B: 42, A: uint8(minInt(int(alpha), 120))}
+	}
+	ebitenutil.DrawRect(screen, x, y, w, h, fill)
+	g.drawRectOutline(screen, x, y, w, h, color.RGBA{R: 196, G: 207, B: 218, A: uint8(minInt(int(alpha), 150))})
+	if selected {
+		ebitenutil.DrawRect(screen, x, y, w, 2, accent)
+	}
+
+	icon := &ebiten.DrawImageOptions{}
+	icon.Filter = ebiten.FilterNearest
+	icon.GeoM.Translate(x+3, y+1)
+	icon.ColorScale.ScaleAlpha(float32(alpha) / 255)
+	if g.player.cooldowns[int(el)] > 0 {
+		icon.ColorScale.ScaleAlpha(0.55)
+	}
+	screen.DrawImage(g.assets.icons[el], icon)
+
+	g.drawText(screen, attackKey(el), int(x+18), int(y+1))
+
+	cdMax := attackCooldown(el)
+	cdNow := g.player.cooldowns[int(el)]
+	readyLabel := ""
+	if cdNow > 0 {
+		readyLabel = fmt.Sprintf("%d", (cdNow+5)/6)
+	}
+	if readyLabel != "" {
+		g.drawText(screen, readyLabel, int(x+w)-11, int(y+1))
+	}
+
+	barX := x + 17
+	barY := y + 11
+	barW := w - 21
+	ebitenutil.DrawRect(screen, barX, barY, barW, 3, color.RGBA{R: 13, G: 17, B: 22, A: alpha})
+	fillW := barW
+	if cdNow > 0 {
+		fillW = barW * (1 - float64(cdNow)/float64(cdMax))
+	}
+	ebitenutil.DrawRect(screen, barX, barY, fillW, 3, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: alpha})
+}
+
+func (g *Game) drawBackdrop(screen *ebiten.Image, alpha uint8) {
+	ebitenutil.DrawRect(screen, 0, 0, ScreenWidth, ScreenHeight, color.RGBA{R: 8, G: 10, B: 16, A: alpha})
+}
+
+func (g *Game) drawPanel(screen *ebiten.Image, x, y, w, h float64, accent color.RGBA) {
+	ebitenutil.DrawRect(screen, x+3, y+3, w, h, color.RGBA{R: 0, G: 0, B: 0, A: 70})
+	ebitenutil.DrawRect(screen, x, y, w, h, color.RGBA{R: 18, G: 22, B: 30, A: 230})
+	g.drawRectOutline(screen, x, y, w, h, color.RGBA{R: 214, G: 226, B: 235, A: 220})
+	ebitenutil.DrawRect(screen, x+1, y+1, w-2, 3, accent)
+	ebitenutil.DrawRect(screen, x+1, y+h-4, w-2, 1, color.RGBA{R: 255, G: 255, B: 255, A: 30})
+}
+
+func (g *Game) drawHUDPanel(screen *ebiten.Image, x, y, w, h float64, accent color.RGBA, alpha uint8) {
+	ebitenutil.DrawRect(screen, x+2, y+2, w, h, color.RGBA{R: 0, G: 0, B: 0, A: uint8(minInt(int(alpha/3), 60))})
+	ebitenutil.DrawRect(screen, x, y, w, h, color.RGBA{R: 15, G: 19, B: 27, A: alpha})
+	g.drawRectOutline(screen, x, y, w, h, color.RGBA{R: 214, G: 226, B: 235, A: uint8(minInt(int(alpha)+10, 225))})
+	ebitenutil.DrawRect(screen, x+1, y+1, w-2, 2, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: alpha})
+}
+
+func (g *Game) drawMiniStat(screen *ebiten.Image, x, y int, accent color.RGBA, text string) {
+	ebitenutil.DrawRect(screen, float64(x), float64(y+2), 4, 4, accent)
+	g.drawText(screen, text, x+8, y)
+}
+
+func (g *Game) drawRectOutline(screen *ebiten.Image, x, y, w, h float64, c color.RGBA) {
+	ebitenutil.DrawRect(screen, x, y, w, 1, c)
+	ebitenutil.DrawRect(screen, x, y+h-1, w, 1, c)
+	ebitenutil.DrawRect(screen, x, y, 1, h, c)
+	ebitenutil.DrawRect(screen, x+w-1, y, 1, h, c)
+}
+
+func (g *Game) drawCenteredText(screen *ebiten.Image, text string, x, y, w int) {
+	g.drawText(screen, text, x+(w-textWidth(text))/2, y)
 }
 
 func (g *Game) drawText(screen *ebiten.Image, text string, x, y int) {
@@ -1164,6 +1364,32 @@ func (g *Game) shakeOffset() (float64, float64) {
 	}
 	rangeX := float64(g.shake) * 0.5
 	return g.rng.Float64()*rangeX - rangeX/2, g.rng.Float64()*rangeX - rangeX/2
+}
+
+func (g *Game) showAbilityHUD() bool {
+	return g.hudFocus > 0 || g.hasActiveCooldown()
+}
+
+func (g *Game) abilityHUDAlpha() uint8 {
+	if g.hasActiveCooldown() {
+		return 220
+	}
+	if g.hudFocus <= 0 {
+		return 0
+	}
+	if g.hudFocus >= 60 {
+		return 190
+	}
+	return uint8(70 + g.hudFocus*2)
+}
+
+func (g *Game) hasActiveCooldown() bool {
+	for _, cd := range g.player.cooldowns {
+		if cd > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func attackCooldown(el element) int {
@@ -1310,6 +1536,10 @@ func wrapLayer(value float64) float64 {
 
 func ratio(v uint8) float32 {
 	return float32(v) / 255
+}
+
+func textWidth(text string) int {
+	return len(text) * 6
 }
 
 func maxInt(a, b int) int {

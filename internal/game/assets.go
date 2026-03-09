@@ -56,6 +56,11 @@ func loadAssets() (*gameAssets, error) {
 	if err != nil {
 		return nil, err
 	}
+	iconImg, err := loadRawPNG("icon.png")
+	if err == nil {
+		ebiten.SetWindowIcon([]image.Image{iconImg})
+	}
+
 	backgroundMid, err := loadPNG("background_mid.png")
 	if err != nil {
 		return nil, err
@@ -142,6 +147,15 @@ func loadPNG(name string) (*ebiten.Image, error) {
 	}
 	return ebiten.NewImageFromImage(img), nil
 }
+
+func loadRawPNG(name string) (image.Image, error) {
+	bs, err := assetfs.FS.ReadFile("generated/" + name)
+	if err != nil {
+		return nil, err
+	}
+	return png.Decode(bytes.NewReader(bs))
+}
+
 
 func sliceHorizontal(img *ebiten.Image, frameW, frameH int) []*ebiten.Image {
 	w, h := img.Size()

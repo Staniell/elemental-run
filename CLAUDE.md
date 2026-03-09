@@ -7,7 +7,7 @@ Use `AGENTS.md` as the primary source of truth for this repository.
 - Project: `Element Rush`
 - Stack: Go + Ebitengine
 - Type: desktop-first infinite runner platformer
-- Status: playable prototype with generated original pixel art and verified build startup
+- Status: playable prototype with a keyboard-driven main menu, generated original pixel art, and verified build startup
 
 ## What Exists
 
@@ -16,7 +16,7 @@ Use `AGENTS.md` as the primary source of truth for this repository.
 - fire / ice / thunder attacks
 - weakness cycle: `fire > ice > thunder > fire`
 - elemental enemies, hostile projectiles, and projectile deflects
-- parallax backgrounds, HUD, score, kill count, restart flow
+- parallax backgrounds, HUD, score, kill count, main menu, and restart flow
 
 ## Where To Work
 

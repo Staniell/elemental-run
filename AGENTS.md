@@ -7,10 +7,11 @@ This file is the generic project context for coding agents working in this repos
 - Name: `Element Rush`
 - Stack: Go + Ebitengine (`github.com/hajimehoshi/ebiten/v2`)
 - Genre: desktop-first 2D infinite runner platformer
-- Current state: playable prototype with original in-repo pixel art, chunk spawning, elemental combat, enemies, projectiles, deflects, HUD, and restart flow
+- Current state: playable prototype with original in-repo pixel art, a main menu, chunk spawning, elemental combat, enemies, projectiles, deflects, HUD, and restart flow
 
 ## Current Gameplay
 
+- The game starts from a keyboard-driven main menu with `Start` and `Quit`.
 - The player auto-runs to the right.
 - Jump uses coyote time and jump buffering.
 - Attacks are `fire`, `ice`, and `thunder`.
@@ -21,9 +22,12 @@ This file is the generic project context for coding agents working in this repos
 ## Controls
 
 - `Space`, `W`, `Up`: jump
+- `Up`, `Down`, `W`, `S`: navigate the main menu
+- `Enter` or `Space`: confirm a menu selection
 - `J` or `1`: fire
 - `K` or `2`: ice
 - `L` or `3`: thunder
+- `Esc`: return to menu during play or quit from the main menu
 - `R`: restart after defeat
 
 ## Verified Status

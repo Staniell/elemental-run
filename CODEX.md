@@ -6,7 +6,7 @@ Use `AGENTS.md` as the source of truth. This file exists as an explicit Codex/GP
 
 - `Element Rush` is a Go + Ebitengine prototype.
 - It is a desktop-first 2D infinite runner platformer.
-- The current prototype already builds and starts successfully.
+- The current prototype already builds, starts successfully, and now includes a main menu.
 
 ## Mechanics Already Implemented
 

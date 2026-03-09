@@ -14,10 +14,13 @@
 
 ## Planned Controls
 
+- `Up` / `Down` or `W` / `S`: menu navigation
+- `Enter` or `Space`: confirm menu choice
 - `Space`, `W`, or `Up`: jump
 - `J` or `1`: fire
 - `K` or `2`: ice
 - `L` or `3`: thunder
+- `Esc`: return to menu during a run, or quit from the main menu
 - `R`: restart after defeat
 
 ## Run

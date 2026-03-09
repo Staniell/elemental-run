@@ -457,6 +457,16 @@ def make_sheet(frames):
     return sheet
 
 
+def app_icon():
+    img = Image.new("RGBA", (48, 48), SKY_MID)
+    d = ImageDraw.Draw(img)
+    d.rectangle((0, 36, 47, 47), fill=LEAF)
+    d.rectangle((0, 42, 47, 47), fill=DIRT_MID)
+    player = player_frame(0)
+    img.paste(player, (0, 0), player)
+    return img
+
+
 def main():
     save("player.png", make_sheet([player_frame(i) for i in range(8)]))
     save(
@@ -499,6 +509,7 @@ def main():
     save("background_far.png", far_background())
     save("background_mid.png", mid_background())
     save("background_near.png", near_background())
+    save("icon.png", app_icon())
     print(f"Generated assets in {OUT}")
 
 

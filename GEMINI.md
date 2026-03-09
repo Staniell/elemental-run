@@ -8,7 +8,7 @@ Use `AGENTS.md` as the canonical project context. This file is a shorter Gemini-
 - Language: Go
 - Engine: Ebitengine
 - Genre: 2D desktop infinite runner platformer
-- Status: working prototype with successful `go build ./...`, `go test ./...`, and startup smoke test
+- Status: working prototype with a main menu, successful `go build ./...`, `go test ./...`, and startup smoke test
 
 ## Core Mechanics
 
