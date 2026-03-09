@@ -20,6 +20,9 @@ const (
 
 	groundY       = 220
 	playerScreenX = 112
+	playerDrawX   = -8
+	playerDrawY   = -3
+	playerFootPad = 3
 
 	gravity      = 0.44
 	jumpVelocity = -8.2
@@ -143,6 +146,15 @@ func (h hazard) rect() rect {
 	return rect{X: h.x, Y: h.y, W: h.w, H: h.h}
 }
 
+type fatalGap struct {
+	x float64
+	w float64
+}
+
+func (g fatalGap) contains(x float64) bool {
+	return x >= g.x && x <= g.x+g.w
+}
+
 type enemy struct {
 	id         int
 	kind       enemyKind
@@ -208,6 +220,7 @@ type Game struct {
 	player      player
 	platforms   []platform
 	hazards     []hazard
+	fatalGaps   []fatalGap
 	enemies     []enemy
 	projectiles []projectile
 	swings      []swing
@@ -263,6 +276,7 @@ func (g *Game) startRun() {
 
 	g.platforms = nil
 	g.hazards = nil
+	g.fatalGaps = nil
 	g.enemies = nil
 	g.projectiles = nil
 	g.swings = nil
@@ -426,6 +440,9 @@ func (g *Game) scrollTerrain() {
 	for i := range g.hazards {
 		g.hazards[i].x -= g.runSpeed
 	}
+	for i := range g.fatalGaps {
+		g.fatalGaps[i].x -= g.runSpeed
+	}
 }
 
 func (g *Game) spawnChunksIfNeeded() {
@@ -474,9 +491,10 @@ func (g *Game) updatePlayer() {
 	}
 	p.y += p.vy
 
+	groundSafe := g.hasGroundAt(playerScreenX + p.w*0.5)
 	landY := groundY - p.h
 	landed := false
-	if p.vy >= 0 && prevBottom <= groundY && p.y+p.h >= groundY {
+	if groundSafe && p.vy >= 0 && prevBottom <= groundY && p.y+p.h >= groundY {
 		landed = true
 	}
 
@@ -508,6 +526,10 @@ func (g *Game) updatePlayer() {
 		p.onGround = true
 	} else {
 		p.onGround = false
+	}
+
+	if !groundSafe && !p.onGround && p.y+p.h >= groundY+20 {
+		g.failRun()
 	}
 }
 
@@ -725,6 +747,14 @@ func (g *Game) cleanup() {
 	}
 	g.hazards = hazards
 
+	fatalGaps := g.fatalGaps[:0]
+	for _, gap := range g.fatalGaps {
+		if gap.x+gap.w > -64 {
+			fatalGaps = append(fatalGaps, gap)
+		}
+	}
+	g.fatalGaps = fatalGaps
+
 	enemies := g.enemies[:0]
 	for _, e := range g.enemies {
 		if !e.dead && e.x+e.w > -80 {
@@ -852,9 +882,16 @@ func (g *Game) hitPlayer(amount int) {
 
 	if p.hp <= 0 {
 		p.hp = 0
-		g.state = stateGameOver
-		g.setBestScore(g.score)
+		g.failRun()
 	}
+}
+
+func (g *Game) failRun() {
+	if g.state == stateGameOver {
+		return
+	}
+	g.state = stateGameOver
+	g.setBestScore(g.score)
 }
 
 func (g *Game) spawnEnemyProjectile(e *enemy) {
@@ -888,35 +925,35 @@ func (g *Game) spawnChunk() {
 	switch {
 	case difficulty < 1:
 		switch {
-		case roll < 35:
+		case roll < 42:
 			width = g.chunkBreather(x)
-		case roll < 68:
+		case roll < 74:
 			width = g.chunkCrateStep(x)
 		default:
 			width = g.chunkTurretRoost(x)
 		}
 	case difficulty < 3:
 		switch {
-		case roll < 18:
+		case roll < 24:
 			width = g.chunkBreather(x)
-		case roll < 38:
+		case roll < 48:
 			width = g.chunkCrateStep(x)
-		case roll < 58:
+		case roll < 68:
 			width = g.chunkSpikeLane(x)
-		case roll < 80:
+		case roll < 86:
 			width = g.chunkTurretRoost(x)
 		default:
 			width = g.chunkSkyBridge(x)
 		}
 	default:
 		switch {
-		case roll < 15:
+		case roll < 22:
 			width = g.chunkCrateStep(x)
-		case roll < 35:
+		case roll < 42:
 			width = g.chunkSpikeLane(x)
-		case roll < 58:
+		case roll < 66:
 			width = g.chunkTurretRoost(x)
-		case roll < 80:
+		case roll < 84:
 			width = g.chunkSkyBridge(x)
 		default:
 			width = g.chunkMixedGauntlet(x)
@@ -932,42 +969,48 @@ func (g *Game) chunkBreather(x float64) float64 {
 }
 
 func (g *Game) chunkCrateStep(x float64) float64 {
-	g.addPlatform(x+72, groundY-32, 32, 32, tileCrate)
-	g.addPlatform(x+128, groundY-64, 32, 32, tileCrate)
-	g.addEnemyOnSurface(enemyGround, x+196, groundY)
-	return 228
+	g.addPlatform(x+82, groundY-32, 32, 32, tileCrate)
+	g.addPlatform(x+146, 176, 78, 32, tilePlatform)
+	g.addFatalGap(x+140, 104)
+	g.addEnemyOnSurface(enemyGround, x+248, groundY)
+	return 292
 }
 
 func (g *Game) chunkSpikeLane(x float64) float64 {
 	g.addHazard(x+82, groundY-18, 32, 18, tileSpike)
-	g.addPlatform(x+138, groundY-32, 32, 32, tileCrate)
+	g.addPlatform(x+146, groundY-32, 32, 32, tileCrate)
 	g.addEnemyOnSurface(enemyGround, x+204, groundY)
 	return 236
 }
 
 func (g *Game) chunkTurretRoost(x float64) float64 {
-	g.addPlatform(x+92, 172, 96, 32, tilePlatform)
-	g.addEnemyOnSurface(enemyTurret, x+124, 172)
-	g.addEnemyOnSurface(enemyGround, x+214, groundY)
-	return 260
+	g.addPlatform(x+94, groundY-32, 32, 32, tileCrate)
+	g.addPlatform(x+150, 176, 96, 32, tilePlatform)
+	g.addEnemyOnSurface(enemyTurret, x+186, 176)
+	g.addEnemyOnSurface(enemyGround, x+276, groundY)
+	return 324
 }
 
 func (g *Game) chunkSkyBridge(x float64) float64 {
-	g.addPlatform(x+68, 180, 64, 32, tilePlatform)
-	g.addPlatform(x+156, 148, 96, 32, tilePlatform)
-	g.addEnemy(enemyFlyer, x+168, 114)
-	g.addEnemyOnSurface(enemyTurret, x+192, 148)
-	return 290
+	g.addPlatform(x+92, groundY-32, 32, 32, tileCrate)
+	g.addPlatform(x+150, 176, 80, 32, tilePlatform)
+	g.addPlatform(x+246, 148, 104, 32, tilePlatform)
+	g.addFatalGap(x+146, 176)
+	g.addEnemy(enemyFlyer, x+212, 112)
+	g.addEnemyOnSurface(enemyTurret, x+280, 148)
+	return 392
 }
 
 func (g *Game) chunkMixedGauntlet(x float64) float64 {
-	g.addPlatform(x+48, groundY-32, 32, 32, tileCrate)
-	g.addHazard(x+102, groundY-18, 32, 18, tileSpike)
-	g.addPlatform(x+156, 172, 64, 32, tilePlatform)
-	g.addEnemyOnSurface(enemyTurret, x+174, 172)
-	g.addEnemy(enemyFlyer, x+248, 104)
-	g.addEnemyOnSurface(enemyGround, x+286, groundY)
-	return 340
+	g.addHazard(x+74, groundY-18, 32, 18, tileSpike)
+	g.addPlatform(x+132, groundY-32, 32, 32, tileCrate)
+	g.addPlatform(x+194, 176, 80, 32, tilePlatform)
+	g.addPlatform(x+290, 148, 96, 32, tilePlatform)
+	g.addFatalGap(x+190, 170)
+	g.addEnemyOnSurface(enemyTurret, x+222, 176)
+	g.addEnemy(enemyFlyer, x+300, 104)
+	g.addEnemyOnSurface(enemyGround, x+402, groundY)
+	return 450
 }
 
 func (g *Game) addPlatform(x, y, w, h float64, tile tileKind) {
@@ -976,6 +1019,19 @@ func (g *Game) addPlatform(x, y, w, h float64, tile tileKind) {
 
 func (g *Game) addHazard(x, y, w, h float64, tile tileKind) {
 	g.hazards = append(g.hazards, hazard{x: x, y: y, w: w, h: h, tile: tile})
+}
+
+func (g *Game) addFatalGap(x, w float64) {
+	g.fatalGaps = append(g.fatalGaps, fatalGap{x: x, w: w})
+}
+
+func (g *Game) hasGroundAt(x float64) bool {
+	for _, gap := range g.fatalGaps {
+		if gap.contains(x) {
+			return false
+		}
+	}
+	return true
 }
 
 func (g *Game) addEnemyOnSurface(kind enemyKind, x, surfaceY float64) {
@@ -1068,9 +1124,15 @@ func (g *Game) drawRepeating(screen *ebiten.Image, img *ebiten.Image, offsetX, o
 }
 
 func (g *Game) drawGround(screen *ebiten.Image, ox, oy float64) {
-	ebitenutil.DrawRect(screen, 0, groundY+oy, ScreenWidth, ScreenHeight-groundY, color.RGBA{R: 40, G: 25, B: 25, A: 255})
+	abyssColor := color.RGBA{R: 12, G: 10, B: 18, A: 255}
+	soilColor := color.RGBA{R: 40, G: 25, B: 25, A: 255}
+	ebitenutil.DrawRect(screen, 0, groundY+oy, ScreenWidth, ScreenHeight-groundY, abyssColor)
 	start := -math.Mod(g.distance, 32)
 	for x := start - 32; x < ScreenWidth+32; x += 32 {
+		if !g.hasGroundAt(x + 16) {
+			continue
+		}
+		ebitenutil.DrawRect(screen, x+ox, groundY+oy, 32, ScreenHeight-groundY, soilColor)
 		op := &ebiten.DrawImageOptions{}
 		op.Filter = ebiten.FilterNearest
 		op.GeoM.Translate(x+ox, groundY+oy)
@@ -1159,9 +1221,11 @@ func (g *Game) drawPlayer(screen *ebiten.Image, ox, oy float64) {
 		frame = g.assets.playerFrames[(g.ticks/6)%6]
 	}
 
+	g.drawPlayerContact(screen, ox, oy)
+
 	op := &ebiten.DrawImageOptions{}
 	op.Filter = ebiten.FilterNearest
-	op.GeoM.Translate(playerScreenX-8+ox, g.player.y-8+oy)
+	op.GeoM.Translate(playerScreenX+playerDrawX+ox, g.player.y+playerDrawY+oy)
 	if g.player.invuln > 0 && (g.player.invuln/4)%2 == 0 {
 		op.ColorScale.ScaleAlpha(0.45)
 	}
@@ -1176,6 +1240,46 @@ func (g *Game) drawPlayer(screen *ebiten.Image, ox, oy float64) {
 		glow.ColorScale.Scale(ratio(accent.R), ratio(accent.G), ratio(accent.B), 1)
 		screen.DrawImage(g.assets.icons[g.player.lastCast], glow)
 	}
+}
+
+func (g *Game) drawPlayerContact(screen *ebiten.Image, ox, oy float64) {
+	surfaceY := float64(groundY)
+	surfaceX := float64(playerScreenX)
+	surfaceW := g.player.w
+	pRect := g.player.rect()
+	playerBottom := g.player.y + g.player.h
+
+	for _, plat := range g.platforms {
+		pr := plat.rect()
+		if !pRect.overlapsX(pr) {
+			continue
+		}
+		if pr.Y < playerBottom-0.5 {
+			continue
+		}
+		if pr.Y >= surfaceY {
+			continue
+		}
+		left := math.Max(pRect.X, pr.X)
+		right := math.Min(pRect.X+pRect.W, pr.X+pr.W)
+		if right > left {
+			surfaceY = pr.Y
+			surfaceX = left
+			surfaceW = right - left
+		}
+	}
+
+	gap := math.Max(0, math.Min(12, surfaceY-playerBottom))
+	contactW := math.Max(12, surfaceW-float64(playerFootPad*2)-2+gap*0.7)
+	contactX := surfaceX + (surfaceW-contactW)/2 + ox
+	contactY := surfaceY - 2 + oy
+	outerAlpha := uint8(math.Max(35, 85-gap*3))
+	midAlpha := uint8(math.Max(55, 135-gap*4))
+	innerAlpha := uint8(math.Max(70, 165-gap*5))
+
+	ebitenutil.DrawRect(screen, contactX+3, contactY, math.Max(0, contactW-6), 1, color.RGBA{R: 24, G: 18, B: 28, A: outerAlpha})
+	ebitenutil.DrawRect(screen, contactX+1, contactY+1, math.Max(0, contactW-2), 1, color.RGBA{R: 24, G: 18, B: 28, A: midAlpha})
+	ebitenutil.DrawRect(screen, contactX, contactY+2, contactW, 1, color.RGBA{R: 18, G: 14, B: 22, A: innerAlpha})
 }
 
 func (g *Game) drawSwing(screen *ebiten.Image, s swing, ox, oy float64) {
@@ -1194,7 +1298,7 @@ func (g *Game) drawSwing(screen *ebiten.Image, s swing, ox, oy float64) {
 }
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
-	g.drawHUDPanel(screen, 8, 8, 92, 22, 210)
+	g.drawHUDPanel(screen, 8, 8, 82, 22, 210)
 	for i := 0; i < maxHealth; i++ {
 		x := 11 + float64(i*15)
 		op := &ebiten.DrawImageOptions{}
@@ -1207,7 +1311,7 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 		screen.DrawImage(g.assets.heart, op)
 	}
 
-	g.drawHUDPanel(screen, 300, 8, 172, 32, 210)
+	g.drawHUDPanel(screen, 300, 9, 172, 30, 210)
 	g.drawSmallStatLine(screen, g.assets.hudScoreIcon, 308, 13, "Score", fmt.Sprintf("%04d", g.score), color.RGBA{R: 247, G: 233, B: 92, A: 255})
 	g.drawSmallStatLine(screen, g.assets.hudKillsIcon, 390, 13, "Kills", fmt.Sprintf("%02d", g.kills), color.RGBA{R: 255, G: 105, B: 120, A: 255})
 	g.drawSmallStatLine(screen, g.assets.hudDistIcon, 308, 24, "Dist", fmt.Sprintf("%04d", int(g.distance/12)), color.RGBA{R: 126, G: 230, B: 255, A: 255})
@@ -1216,10 +1320,10 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	if g.showAbilityHUD() {
 		alpha := g.abilityHUDAlpha()
 		y := 34 + (1-g.hudAbility)*(-12)
-		g.drawHUDPanel(screen, 8, y, 92, 40, alpha)
+		g.drawHUDPanel(screen, 8, y, 82, 40, alpha)
 		for i, el := range []element{fire, ice, thunder} {
 			rowY := y + 4 + float64(i*12)
-			g.drawAbilitySlot(screen, 12, rowY, 84, 8, el, alpha)
+			g.drawAbilitySlot(screen, 12, rowY, 74, 8, el, alpha)
 		}
 	}
 }

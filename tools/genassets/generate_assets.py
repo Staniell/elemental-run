@@ -33,6 +33,9 @@ SKIN = rgba("f8c59b")
 HAIR = rgba("362430")
 SCARF = rgba("ef5d60")
 CLOTH = rgba("54708a")
+SHOE = rgba("2b2230")
+GUN_DARK = rgba("2f3348")
+GUN_LIGHT = rgba("7d8aa8")
 FIRE_1 = rgba("ff8c42")
 FIRE_2 = rgba("ffd166")
 ICE_1 = rgba("7ce7ff")
@@ -49,6 +52,14 @@ def save(name, image):
 def outlined_rect(draw, box, fill, outline=INK):
     draw.rectangle(box, fill=fill)
     draw.rectangle(box, outline=outline)
+
+
+def outlined_rect_no_bottom(draw, box, fill, outline=INK):
+    x0, y0, x1, y1 = box
+    draw.rectangle(box, fill=fill)
+    draw.line((x0, y0, x1, y0), fill=outline)
+    draw.line((x0, y0, x0, y1), fill=outline)
+    draw.line((x1, y0, x1, y1), fill=outline)
 
 
 def gradient(width, height, top, mid, low):
@@ -126,21 +137,49 @@ def player_frame(index):
 
     outlined_rect(d, left_arm, SKIN)
     outlined_rect(d, right_arm, SKIN)
+
+    left_hand = (left_arm[0] - 1, left_arm[3] - 3, left_arm[2], left_arm[3])
+    right_hand = (
+        right_arm[2] - 1,
+        right_arm[3] - 4,
+        right_arm[2] + 2,
+        right_arm[3] - 1,
+    )
+    outlined_rect(d, left_hand, SKIN)
+    outlined_rect(d, right_hand, SKIN)
+
+    pistol = [
+        (right_arm[2] + 1, right_arm[1] + 1),
+        (right_arm[2] + 7, right_arm[1] + 1),
+        (right_arm[2] + 7, right_arm[1] + 4),
+        (right_arm[2] + 5, right_arm[1] + 4),
+        (right_arm[2] + 5, right_arm[1] + 7),
+        (right_arm[2] + 3, right_arm[1] + 8),
+        (right_arm[2] + 2, right_arm[1] + 4),
+        (right_arm[2] + 1, right_arm[1] + 4),
+    ]
+    d.polygon(pistol, fill=GUN_DARK, outline=INK)
     d.rectangle(
-        (right_arm[2] - 2, right_arm[1] + 1, right_arm[2] + 2, right_arm[3]),
+        (right_arm[2] + 3, right_arm[1] + 2, right_arm[2] + 5, right_arm[1] + 2),
+        fill=GUN_LIGHT,
+    )
+    d.rectangle(
+        (right_arm[2] + 7, right_arm[1] + 2, right_arm[2] + 8, right_arm[1] + 2),
         fill=FIRE_2,
     )
-    d.rectangle(
-        (right_arm[2] - 2, right_arm[1] + 1, right_arm[2] + 2, right_arm[3]),
-        outline=INK,
-    )
 
-    outlined_rect(d, left_leg, rgba("4d6478"))
-    outlined_rect(d, right_leg, rgba("4d6478"))
-    d.rectangle((left_leg[0], left_leg[3] - 2, left_leg[2] + 2, left_leg[3]), fill=INK)
-    d.rectangle(
-        (right_leg[0], right_leg[3] - 2, right_leg[2] + 2, right_leg[3]), fill=INK
+    outlined_rect_no_bottom(d, left_leg, rgba("4d6478"))
+    outlined_rect_no_bottom(d, right_leg, rgba("4d6478"))
+
+    left_shoe = (left_leg[0] - 1, left_leg[3] - 1, left_leg[2] + 3, left_leg[3] + 1)
+    right_shoe = (
+        right_leg[0] - 1,
+        right_leg[3] - 1,
+        right_leg[2] + 3,
+        right_leg[3] + 1,
     )
+    outlined_rect(d, left_shoe, SHOE)
+    outlined_rect(d, right_shoe, SHOE)
 
     return img
 
@@ -333,7 +372,21 @@ def tile_spike():
 def heart_icon():
     img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.polygon([(8, 13), (3, 8), (3, 4), (5, 2), (7, 2), (8, 4), (9, 2), (11, 2), (13, 4), (13, 8)], fill=HEART)
+    d.polygon(
+        [
+            (8, 13),
+            (3, 8),
+            (3, 4),
+            (5, 2),
+            (7, 2),
+            (8, 4),
+            (9, 2),
+            (11, 2),
+            (13, 4),
+            (13, 8),
+        ],
+        fill=HEART,
+    )
     d.polygon([(4, 5), (5, 4), (6, 4)], fill=rgba("ffffff", 150))
     return img
 
@@ -365,7 +418,10 @@ def thunder_icon():
 def score_icon():
     img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.polygon([(8, 3), (9, 7), (13, 8), (9, 9), (8, 13), (7, 9), (3, 8), (7, 7)], fill=THUNDER_1)
+    d.polygon(
+        [(8, 3), (9, 7), (13, 8), (9, 9), (8, 13), (7, 9), (3, 8), (7, 7)],
+        fill=THUNDER_1,
+    )
     d.polygon([(8, 6), (10, 8), (8, 10), (6, 8)], fill=THUNDER_2)
     return img
 
@@ -393,7 +449,9 @@ def distance_icon():
 def best_icon():
     img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.polygon([(3, 5), (6, 8), (8, 4), (10, 8), (13, 5), (12, 10), (4, 10)], fill=THUNDER_1)
+    d.polygon(
+        [(3, 5), (6, 8), (8, 4), (10, 8), (13, 5), (12, 10), (4, 10)], fill=THUNDER_1
+    )
     d.rectangle((5, 11, 11, 12), fill=THUNDER_2)
     return img
 
