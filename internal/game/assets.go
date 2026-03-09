@@ -24,6 +24,10 @@ type gameAssets struct {
 	attackFX          map[element]*ebiten.Image
 	tiles             map[tileKind]*ebiten.Image
 	icons             map[element]*ebiten.Image
+	hudScoreIcon      *ebiten.Image
+	hudKillsIcon      *ebiten.Image
+	hudDistIcon       *ebiten.Image
+	hudBestIcon       *ebiten.Image
 	heart             *ebiten.Image
 }
 
@@ -92,8 +96,8 @@ func loadAssets() (*gameAssets, error) {
 	if len(fxFrames) < 3 {
 		return nil, fmt.Errorf("fx spritesheet has %d frames, need at least 3", len(fxFrames))
 	}
-	if len(uiFrames) < 4 {
-		return nil, fmt.Errorf("ui spritesheet has %d frames, need at least 4", len(uiFrames))
+	if len(uiFrames) < 8 {
+		return nil, fmt.Errorf("ui spritesheet has %d frames, need at least 8", len(uiFrames))
 	}
 
 	return &gameAssets{
@@ -132,7 +136,11 @@ func loadAssets() (*gameAssets, error) {
 			ice:     uiFrames[2],
 			thunder: uiFrames[3],
 		},
-		heart: uiFrames[0],
+		hudScoreIcon: uiFrames[4],
+		hudKillsIcon: uiFrames[5],
+		hudDistIcon:  uiFrames[6],
+		hudBestIcon:  uiFrames[7],
+		heart:        uiFrames[0],
 	}, nil
 }
 
@@ -155,7 +163,6 @@ func loadRawPNG(name string) (image.Image, error) {
 	}
 	return png.Decode(bytes.NewReader(bs))
 }
-
 
 func sliceHorizontal(img *ebiten.Image, frameW, frameH int) []*ebiten.Image {
 	w, h := img.Size()

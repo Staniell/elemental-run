@@ -1208,10 +1208,10 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	}
 
 	g.drawHUDPanel(screen, 300, 8, 172, 32, 210)
-	g.drawSmallStatLine(screen, 308, 13, "Score", fmt.Sprintf("%04d", g.score), color.RGBA{R: 247, G: 233, B: 92, A: 255})
-	g.drawSmallStatLine(screen, 390, 13, "Kills", fmt.Sprintf("%02d", g.kills), color.RGBA{R: 255, G: 105, B: 120, A: 255})
-	g.drawSmallStatLine(screen, 308, 24, "Dist", fmt.Sprintf("%04d", int(g.distance/12)), color.RGBA{R: 126, G: 230, B: 255, A: 255})
-	g.drawSmallStatLine(screen, 390, 24, "Best", fmt.Sprintf("%04d", g.bestScore), color.RGBA{R: 214, G: 226, B: 235, A: 255})
+	g.drawSmallStatLine(screen, g.assets.hudScoreIcon, 308, 13, "Score", fmt.Sprintf("%04d", g.score), color.RGBA{R: 247, G: 233, B: 92, A: 255})
+	g.drawSmallStatLine(screen, g.assets.hudKillsIcon, 390, 13, "Kills", fmt.Sprintf("%02d", g.kills), color.RGBA{R: 255, G: 105, B: 120, A: 255})
+	g.drawSmallStatLine(screen, g.assets.hudDistIcon, 308, 24, "Dist", fmt.Sprintf("%04d", int(g.distance/12)), color.RGBA{R: 126, G: 230, B: 255, A: 255})
+	g.drawSmallStatLine(screen, g.assets.hudBestIcon, 390, 24, "Best", fmt.Sprintf("%04d", g.bestScore), color.RGBA{R: 214, G: 226, B: 235, A: 255})
 
 	if g.showAbilityHUD() {
 		alpha := g.abilityHUDAlpha()
@@ -1338,9 +1338,15 @@ func (g *Game) drawHUDPanel(screen *ebiten.Image, x, y, w, h float64, alpha uint
 	g.drawRectOutline(screen, x, y, w, h, color.RGBA{R: 220, G: 228, B: 236, A: uint8(minInt(int(alpha)+8, 220))})
 }
 
-func (g *Game) drawSmallStatLine(screen *ebiten.Image, x, y int, label, value string, accent color.RGBA) {
-	ebitenutil.DrawRect(screen, float64(x), float64(y+2), 4, 4, accent)
-	labelX := x + 8
+func (g *Game) drawSmallStatLine(screen *ebiten.Image, icon *ebiten.Image, x, y int, label, value string, accent color.RGBA) {
+	if icon != nil {
+		op := &ebiten.DrawImageOptions{}
+		op.Filter = ebiten.FilterNearest
+		op.GeoM.Scale(0.625, 0.625)
+		op.GeoM.Translate(float64(x), float64(y+2))
+		screen.DrawImage(icon, op)
+	}
+	labelX := x + 12
 	valueX := labelX + smallTextWidth(label) + 8
 	g.drawSmallText(screen, label, labelX, y, color.RGBA{R: accent.R, G: accent.G, B: accent.B, A: 255})
 	g.drawSmallText(screen, value, valueX, y, color.RGBA{R: 245, G: 247, B: 250, A: 255})

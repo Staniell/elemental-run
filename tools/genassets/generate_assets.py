@@ -333,49 +333,68 @@ def tile_spike():
 def heart_icon():
     img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.ellipse((1, 2, 7, 8), fill=HEART, outline=INK)
-    d.ellipse((8, 2, 14, 8), fill=HEART, outline=INK)
-    d.polygon([(1, 7), (8, 15), (14, 7)], fill=HEART, outline=INK)
+    d.polygon([(8, 13), (3, 8), (3, 4), (5, 2), (7, 2), (8, 4), (9, 2), (11, 2), (13, 4), (13, 8)], fill=HEART)
+    d.polygon([(4, 5), (5, 4), (6, 4)], fill=rgba("ffffff", 150))
     return img
 
 
 def fire_icon():
     img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.polygon(
-        [(8, 1), (5, 4), (4, 7), (5, 12), (9, 15), (12, 10), (11, 5)],
-        fill=FIRE_1,
-        outline=INK,
-    )
-    d.polygon([(8, 4), (7, 6), (7, 9), (9, 12), (10, 9), (10, 6)], fill=FIRE_2)
-    d.rectangle((7, 11, 9, 13), fill=FIRE_2)
+    d.polygon([(8, 2), (4, 9), (5, 13), (8, 14), (11, 13), (12, 9)], fill=FIRE_1)
+    d.polygon([(8, 7), (6, 10), (8, 12), (10, 10)], fill=FIRE_2)
     return img
 
 
 def ice_icon():
     img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.line((8, 1, 8, 14), fill=ICE_1, width=1)
-    d.line((1, 8, 14, 8), fill=ICE_1, width=1)
-    d.line((3, 3, 12, 12), fill=ICE_1, width=1)
-    d.line((12, 3, 3, 12), fill=ICE_1, width=1)
-    for x, y in [(8, 1), (8, 14), (1, 8), (14, 8), (3, 3), (12, 12), (12, 3), (3, 12)]:
-        d.rectangle((x - 1, y - 1, x + 1, y + 1), fill=ICE_2, outline=INK)
-    d.ellipse((6, 6, 9, 9), fill=ICE_2, outline=INK)
+    d.polygon([(8, 2), (4, 8), (8, 14), (12, 8)], fill=ICE_1)
+    d.polygon([(8, 5), (6, 8), (8, 11), (10, 8)], fill=ICE_2)
     return img
 
 
 def thunder_icon():
     img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    d.polygon(
-        [(7, 1), (12, 1), (9, 6), (13, 6), (6, 15), (7, 9), (3, 9)],
-        fill=THUNDER_1,
-        outline=INK,
-    )
-    d.polygon(
-        [(8, 3), (10, 3), (8, 6), (11, 6), (7, 12), (7, 8), (5, 8)], fill=THUNDER_2
-    )
+    d.polygon([(9, 2), (4, 9), (8, 9), (7, 14), (12, 7), (8, 7)], fill=THUNDER_1)
+    d.polygon([(8, 4), (6, 8), (8, 8), (7, 11), (10, 7), (8, 7)], fill=THUNDER_2)
+    return img
+
+
+def score_icon():
+    img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.polygon([(8, 3), (9, 7), (13, 8), (9, 9), (8, 13), (7, 9), (3, 8), (7, 7)], fill=THUNDER_1)
+    d.polygon([(8, 6), (10, 8), (8, 10), (6, 8)], fill=THUNDER_2)
+    return img
+
+
+def kills_icon():
+    img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rectangle((5, 4, 12, 10), fill=rgba("f0f4f8"))
+    d.rectangle((6, 11, 11, 12), fill=rgba("f0f4f8"))
+    d.rectangle((6, 7, 7, 8), fill=INK)
+    d.rectangle((10, 7, 11, 8), fill=INK)
+    d.rectangle((7, 11, 7, 12), fill=INK)
+    d.rectangle((10, 11, 10, 12), fill=INK)
+    return img
+
+
+def distance_icon():
+    img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.polygon([(4, 4), (8, 8), (4, 12), (5, 12), (9, 8), (5, 4)], fill=ICE_1)
+    d.polygon([(8, 4), (12, 8), (8, 12), (9, 12), (13, 8), (9, 4)], fill=ICE_2)
+    return img
+
+
+def best_icon():
+    img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.polygon([(3, 5), (6, 8), (8, 4), (10, 8), (13, 5), (12, 10), (4, 10)], fill=THUNDER_1)
+    d.rectangle((5, 11, 11, 12), fill=THUNDER_2)
     return img
 
 
@@ -535,6 +554,10 @@ def main():
                 fire_icon(),
                 ice_icon(),
                 thunder_icon(),
+                score_icon(),
+                kills_icon(),
+                distance_icon(),
+                best_icon(),
             ]
         ),
     )
